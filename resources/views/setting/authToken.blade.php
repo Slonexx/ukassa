@@ -1,8 +1,10 @@
 @extends('layout')
 @section('item', 'link_2')
 @section('content')
+    @include('setting.script_setting_app')
+
     <script>
-        let url = '{{Config::get("Global")['ukassa']}}';
+        let url = '{{ Config::get("Global")['ukassa'] }}';
         let accountId = '{{ $accountId }}'
     </script>
 
@@ -69,6 +71,6 @@
         } else {  sendCollection('show') }
     </script>
 
-    @include('setting.script_setting_app')
+
 @endsection
 

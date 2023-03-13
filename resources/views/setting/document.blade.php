@@ -1,10 +1,10 @@
 @extends('layout')
 @section('item', 'link_4')
 @section('content')
-
+    @include('div.TopServicePartner')
+    @include('setting.script_setting_app')
     <div class="p-4 mx-1 mt-1 bg-white rounded py-3">
-        @include('div.TopServicePartner')
-        @include('setting.script_setting_app')
+
 
         @isset($message)
 
