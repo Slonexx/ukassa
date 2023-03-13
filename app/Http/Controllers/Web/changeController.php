@@ -6,6 +6,8 @@ use App\Clients\KassClient;
 use App\Http\Controllers\BD\getMainSettingBD;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\globalObjectController;
+use GuzzleHttp\Exception\BadResponseException;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\Request;
 
 class changeController extends Controller
@@ -16,11 +18,27 @@ class changeController extends Controller
         $SettingBD = new getMainSettingBD($accountId);
         $Config = new globalObjectController();
 
-        $ClientTIS = new KassClient($SettingBD->authtoken);
         try {
+            $ClientTIS = new KassClient($SettingBD->authtoken);
+           if ($SettingBD->authtoken != null)
             $get_user = $ClientTIS->GETClient($Config->apiURL_ukassa.'auth/get_user/');
-        } catch (\Throwable $e){
-            return to_route('errorSetting', ['error' => $e->getMessage()]);
+           else  return to_route('errorSetting', [
+               'accountId' => $accountId,
+               'isAdmin' => $isAdmin,
+               'error' => "Токен приложения умер, сообщите разработчикам приложения"]
+           );
+        } catch (BadResponseException $e){
+            return to_route('errorSetting', [
+                    'accountId' => $accountId,
+                    'isAdmin' => $isAdmin,
+                    'error' => $e->getResponse()->getBody()->getContents()]
+            );
+        } catch (GuzzleException $e) {
+            return to_route('errorSetting', [
+                    'accountId' => $accountId,
+                    'isAdmin' => $isAdmin,
+                    'error' => $e->getResponse()->getBody()->getContents()]
+            );
         }
 
         $kassa = $get_user->user_kassas->kassa;

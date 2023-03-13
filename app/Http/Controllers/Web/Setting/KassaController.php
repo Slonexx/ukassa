@@ -17,6 +17,13 @@ class KassaController extends Controller
         $SettingBD = new getMainSettingBD($accountId);
         $Config = new globalObjectController();
 
+        if ($SettingBD->tokenMs == null){
+            return view('setting.no', [
+                'accountId' => $accountId,
+                'isAdmin' => $isAdmin,
+            ]);
+        }
+
         $ClientTIS = new KassClient($SettingBD->authtoken);
         try {
             $get_user = $ClientTIS->GETClient($Config->apiURL_ukassa.'auth/get_user/');

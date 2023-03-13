@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Web\Setting;
 
 use App\Clients\MsClient;
 use App\Http\Controllers\BD\getAccessByAccountId;
+use App\Http\Controllers\BD\getMainSettingBD;
 use App\Http\Controllers\Config\getSettingVendorController;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\getData\getDevices;
 use App\Services\workWithBD\DataBaseService;
+use GuzzleHttp\Exception\BadResponseException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -21,15 +23,30 @@ class AccessController extends Controller
 
         $Workers = new getAccessByAccountId($accountId);
 
-        if ( array_key_exists(0, $Workers->access) ){
-            $Workers = null;
+        $Setting = new getMainSettingBD($accountId);
+        $tokenMs = $Setting->tokenMs;
+        if ($Setting->tokenMs == null){
+            return view('setting.no', [
+                'accountId' => $accountId,
+                'isAdmin' => $isAdmin,
+            ]);
+        }
+
+        if ( array_key_exists(0, $Workers->access) ){ $Workers = null;
         } else $Workers = $Workers->access;
 
-        $Setting = new getSettingVendorController($accountId);
-        $tokenMs = $Setting->TokenMoySklad;
+
         $url_employee = 'https://online.moysklad.ru/api/remap/1.2/entity/employee';
-        $Client = new MsClient($tokenMs);
-        $Body_employee = $Client->get($url_employee)->rows;
+        try {
+            $Client = new MsClient($tokenMs);
+            $Body_employee = $Client->get($url_employee)->rows;
+        } catch (BadResponseException $e) {
+            return view('setting.error', [
+                'accountId' => $accountId,
+                'isAdmin' => $isAdmin,
+                'message' => $e->getResponse()->getBody()->getContents()
+            ]);
+        }
         $security = [];
 
 
