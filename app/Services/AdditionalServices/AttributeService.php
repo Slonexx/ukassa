@@ -85,25 +85,25 @@ class AttributeService
     {
         return [
             0 => [
-                "name" => "фискальный номер (ТИС)",
+                "name" => "фискальный номер (Учёт.Касса)",
                 "type" => "string",
                 "required" => false,
                 "description" => "данное дополнительнее поле отвечает за фискальный номер чека (ТИС)",
             ],
             1 => [
-                "name" => "Ссылка для QR-кода (ТИС)",
+                "name" => "Ссылка для QR-кода (Учёт.Касса)",
                 "type" => "link",
                 "required" => false,
                 "description" => "данное дополнительнее поле отвечает за ссылку на QR-код чека (ТИС)",
             ],
             2 => [
-                "name" => "Фискализация (ТИС)",
+                "name" => "Фискализация (Учёт.Касса)",
                 "type" => "boolean",
                 "required" => false,
                 "description" => "данное дополнительное поле отвечает за проведения фискализации, если стоит галочка то фискализация была (ТИС)",
             ],
             3 => [
-                "name" => "ID (ТИС)",
+                "name" => "ID (Учёт.Касса)",
                 "type" => "string",
                 "required" => false,
                 "show" => false,
@@ -112,10 +112,11 @@ class AttributeService
         ];
     }
 
-    public function getPayDocAttributes(){
+    public function getPayDocAttributes(): array
+    {
         return [
             0 => [
-                "name" => "Фискализация (ТИС)",
+                "name" => "Фискализация (Учёт.Касса)",
                 "type" => "boolean",
                 "required" => false,
                 "description" => "данное дополнительное поле отвечает за проведения фискализации, если стоит галочка то фискализация была (ТИС)",
@@ -132,7 +133,6 @@ class AttributeService
     private function getBodyToAdd(MsClient $client, string $url, array $bodyAttributes): void
     {
         $json = $client->get($url);
-        //$bodyToAdd = [];
 
         foreach ($bodyAttributes as $body) {
             $foundedAttrib = false;
@@ -142,18 +142,9 @@ class AttributeService
                     break;
                 }
             }
-            if (!$foundedAttrib) {
-                $client->post($url,$body);
-                //array_push($bodyToAdd, $body);
-            }
+            if (!$foundedAttrib) { $client->post($url,$body); }
         }
 
-        //dd($bodyToAdd);
-
-//        if (count($bodyToAdd) > 0) {
-//            $client->multiPost($url, $bodyToAdd);
-//        }
-        //return $bodyToAdd;
     }
 
 }
