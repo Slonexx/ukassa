@@ -7,7 +7,13 @@
         let url = '{{ Config::get("Global")['ukassa'] }}';
         let accountId = '{{ $accountId }}'
     </script>
+    @isset($message)
 
+        <div class="mt-2 {{$message['alert']}}"> {{ $message['message'] }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+    @endisset
     <div class="p-4 mx-1 mt-1 bg-white rounded py-3">
         @include('div.TopServicePartner')
 
