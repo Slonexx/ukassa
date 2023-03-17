@@ -276,7 +276,7 @@ class TicketService
         $Resul_positions = null;
         $check_attributes_in_value_name = false;
         foreach ($oldBody->attributes as $item){
-            if ($item->name == 'Фискальный номер (ТИС)' and $item->name != ''){
+            if ($item->name == 'Фискальный номер (Учёт.Касса)' and $item->name != ''){
                 $check_attributes_in_value_name = false;
                 break;
             } else $check_attributes_in_value_name = true;
@@ -303,7 +303,7 @@ class TicketService
     {
         $Result_attributes = null;
         foreach ($attributes as $item) {
-            if ($item->name == "фискальный номер (ТИС)" and $check_attributes == true) {
+            if ($item->name == "фискальный номер (Учёт.Касса)" and $check_attributes == true) {
                 $Result_attributes[] = [
                     "meta"=> [
                         "href"=> $item->meta->href,
@@ -549,7 +549,7 @@ class TicketService
             $attributes = null;
             $positions = null;
             foreach ($attributes_item as $item){
-                if ($item->name == 'фискальный номер (ТИС)'){
+                if ($item->name == 'фискальный номер (Учёт.Касса)'){
                     $attributes[] = [
                         'meta' => [
                             'href' => $item->meta->href,

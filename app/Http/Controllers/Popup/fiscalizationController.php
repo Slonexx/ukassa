@@ -42,7 +42,7 @@ class fiscalizationController extends Controller
 
         if (property_exists($Body, 'attributes')){
             foreach ($Body->attributes as $item){
-                if ($item->name == 'фискальный номер (ТИС)'){
+                if ($item->name == 'фискальный номер (Учёт.Касса)'){
                     $attributes['ticket_id'] = $item->value;
                     break;
                 }
