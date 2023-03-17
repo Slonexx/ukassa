@@ -25,7 +25,7 @@ class changeController extends Controller
            else  return to_route('errorSetting', [
                'accountId' => $accountId,
                'isAdmin' => $isAdmin,
-               'error' => "Токен приложения умер, сообщите разработчикам приложения"]
+               'error' => "Токен приложения отсутствует, сообщите разработчикам приложения"]
            );
         } catch (BadResponseException $e){
             return to_route('errorSetting', [
