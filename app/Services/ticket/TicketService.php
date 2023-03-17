@@ -313,7 +313,7 @@ class TicketService
                     "value" => $postTicket->data->fixed_check,
                 ];
             }
-            if ($item->name == "Ссылка для QR-кода (ТИС)" ) {
+            if ($item->name == "Ссылка для QR-кода (Учёт.Касса)" ) {
                 $Result_attributes[] = [
                     "meta"=> [
                         "href"=> $item->meta->href,
@@ -323,7 +323,7 @@ class TicketService
                     "value" => $postTicket->data->link,
                 ];
             }
-            if ($item->name == "Фискализация (ТИС)" ) {
+            if ($item->name == "Фискализация (Учёт.Касса)" ) {
                 $Result_attributes[] = [
                     "meta"=> [
                         "href"=> $item->meta->href,
@@ -333,7 +333,7 @@ class TicketService
                     "value" => true,
                 ];
             }
-            if ($item->name == "ID (ТИМ)" ) {
+            if ($item->name == "ID (Учёт.Касса)" ) {
                 $Result_attributes[] = [
                     "meta"=> [
                         "href"=> $item->meta->href,
@@ -559,7 +559,7 @@ class TicketService
                         'value' => $putBody->data->fixed_check,
                     ];
                 }
-                if ($item->name == 'Ссылка для QR-кода (ТИС)'){
+                if ($item->name == 'Ссылка для QR-кода (Учёт.Касса)'){
                     $attributes[] = [
                         'meta' => [
                             'href' => $item->meta->href,
@@ -569,7 +569,7 @@ class TicketService
                         'value' => $putBody->data->link,
                     ];
                 }
-                if ($item->name == 'Фискализация (ТИС)'){
+                if ($item->name == 'Фискализация (Учёт.Касса)'){
                     $attributes[] = [
                         'meta' => [
                             'href' => $item->meta->href,
