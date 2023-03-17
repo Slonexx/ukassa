@@ -95,7 +95,6 @@ class AttributeService
                 "name" => "Ссылка для QR-кода (Учёт.Касса)",
                 "type" => "link",
                 "required" => false,
-                "show" => false,
                 "description" => "данное дополнительнее поле отвечает за ссылку на QR-код чека (Учёт.Касса)",
             ],
             2 => [
