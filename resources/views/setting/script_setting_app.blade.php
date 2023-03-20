@@ -69,9 +69,13 @@
 
 
     /*СКРИПТ ДОКУМЕЕТОВ ()*/
-    function loading(createDocument, payment_type){
+    function loading(createDocument, payment_type, OperationCash, OperationCard){
         window.document.getElementById('createDocument_asWay').value = createDocument
+        if (createDocument == 4) window.document.getElementById('CustomCreateDocument').style.display = "Block"
         window.document.getElementById('payment_type').value = payment_type
+
+        window.document.getElementById('OperationCash').value = OperationCash
+        window.document.getElementById('OperationCard').value = OperationCard
     }
 
 </script>
