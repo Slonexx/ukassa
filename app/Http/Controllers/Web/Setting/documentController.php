@@ -59,6 +59,8 @@ class documentController extends Controller
 
             'paymentDocument' => $paymentDocument,
             'payment_type' => $payment_type,
+            'OperationCash' => $OperationCash,
+            'OperationCard' => $OperationCard,
         ]);
     }
 
