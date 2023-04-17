@@ -96,6 +96,7 @@ class DataBaseService
                 'accountId' => $accountId,
                 'idKassa' => null,
                 'idDepartment' => null,
+
                 'paymentDocument' => null,
                 'payment_type' => null,
                 'OperationCash' => null,

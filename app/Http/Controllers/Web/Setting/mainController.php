@@ -10,6 +10,7 @@ use App\Http\Controllers\Config\Lib\cfg;
 use App\Http\Controllers\Config\Lib\VendorApiController;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\globalObjectController;
+use App\Services\MetaServices\MetaHook\AttributeHook;
 use App\Services\workWithBD\DataBaseService;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
@@ -22,6 +23,11 @@ class mainController extends Controller
         $isAdmin = $request->isAdmin;
 
         $SettingBD = new getMainSettingBD($accountId);
+
+        /*$Attribute = new AttributeHook();
+        dd($Attribute->getAllAttribute($SettingBD->tokenMs));*/
+
+
 
 
         return view('setting.authToken', [

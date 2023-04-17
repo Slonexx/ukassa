@@ -35,6 +35,7 @@ class getMainSettingBD extends Controller
         $json = DataBaseService::showDocumentSetting($accountId);
         $this->idKassa = $json['idKassa'];
         $this->idDepartment = $json['idDepartment'];
+
         $this->paymentDocument = $json['paymentDocument'];
         $this->payment_type = $json['payment_type'];
         $this->OperationCash = $json['OperationCash'];

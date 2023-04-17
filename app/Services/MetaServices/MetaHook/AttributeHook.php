@@ -143,4 +143,38 @@ class AttributeHook
 
 
 
+   /* public function getAllAttribute($apiKey)
+    {
+        $client = new MsClient($apiKey);
+
+        $EntityDocument = [
+            0 => 'customerorder',
+            1 => 'demand',
+            2 => 'salesreturn',
+        ];
+
+        $nameAttribute = [
+            'фискальный номер (Учёт.Касса)',
+            'Ссылка для QR-кода (Учёт.Касса)',
+            'Фискализация (Учёт.Касса)',
+            'ID (Учёт.Касса)',
+        ];
+        //dd($nameAttribute, in_array('фискальный номер (Учёт.Касса)', $nameAttribute));
+        foreach ($EntityDocument as $item){
+            $uri = "https://online.moysklad.ru/api/remap/1.2/entity/".$item."/metadata/attributes";
+            $json = $client->get($uri);
+            $foundedMeta = null;
+            foreach($json->rows as $row){
+                if($row->name == $nameAttribute){
+                    $foundedMeta = $row->meta;
+                    break;
+                }
+            }
+            return $foundedMeta;
+        }
+
+    }*/
+
+
+
 }

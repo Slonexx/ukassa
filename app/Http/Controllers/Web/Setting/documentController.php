@@ -45,6 +45,7 @@ class documentController extends Controller
                 'accountId' => $accountId,
                 'isAdmin' => $isAdmin,
 
+                'message' => $request->message,
                 'paymentDocument' => $paymentDocument,
                 'payment_type' => $payment_type,
                 'OperationCash' => $OperationCash,
