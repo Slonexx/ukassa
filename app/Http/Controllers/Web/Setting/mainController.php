@@ -13,6 +13,7 @@ use App\Http\Controllers\globalObjectController;
 use App\Services\MetaServices\MetaHook\AttributeHook;
 use App\Services\workWithBD\DataBaseService;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\Request;
 
@@ -61,28 +62,28 @@ class mainController extends Controller
             $Client = new KassClient($token);
             $get_check = $Client->GETClient($Config->apiURL_ukassa.'auth/get_user/');
 
-            if ($SettingBD->tokenMs == null){
-                DataBaseService::createMainSetting($accountId, $setting->TokenMoySklad, $token);
-            } else {
-                DataBaseService::updateMainSetting($accountId, $setting->TokenMoySklad, $token);
-            }
-            $cfg = new cfg();
-            $app = AppInstanceContoller::loadApp($cfg->appId, $accountId);
-            $app->status = AppInstanceContoller::ACTIVATED;
-            $vendorAPI = new VendorApiController();
-            $vendorAPI->updateAppStatus($cfg->appId, $accountId, $app->getStatusName());
-            $app->persist();
-            return to_route('getKassa', ['accountId' => $accountId, 'isAdmin' => $isAdmin]);
-        } catch (\Throwable $e){
+        } catch (BadResponseException $e){
             return view('setting.authToken', [
                 'accountId' => $accountId,
                 'isAdmin' => $isAdmin,
 
-                'message' => 'ошибка: ' . $e->getCode(),
+                'message' => 'ошибка: ' .json_decode($e->getResponse()->getBody()->getContents()),
                 'token' => null,
             ]);
         }
 
+        if ($SettingBD->tokenMs == null){
+            DataBaseService::createMainSetting($accountId, $setting->TokenMoySklad, $token);
+        } else {
+            DataBaseService::updateMainSetting($accountId, $setting->TokenMoySklad, $token);
+        }
+        $cfg = new cfg();
+        $app = AppInstanceContoller::loadApp($cfg->appId, $accountId);
+        $app->status = AppInstanceContoller::ACTIVATED;
+        $vendorAPI = new VendorApiController();
+        $vendorAPI->updateAppStatus($cfg->appId, $accountId, $app->getStatusName());
+        $app->persist();
+        return to_route('getKassa', ['accountId' => $accountId, 'isAdmin' => $isAdmin]);
 
     }
 

@@ -7,12 +7,13 @@
         let url = '{{ Config::get("Global")['ukassa'] }}';
         let accountId = '{{ $accountId }}'
     </script>
+    @include('div.alert')
     @isset($message)
-
-        <div class="mt-2 {{$message['alert']}}"> {{ $message['message'] }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-
+        <script>
+            let message = @json(($message));
+            alertViewByColorName("danger", message)
+            window.alert(message)
+        </script>
     @endisset
     <div class="p-4 mx-1 mt-1 bg-white rounded py-3">
         @include('div.TopServicePartner')
