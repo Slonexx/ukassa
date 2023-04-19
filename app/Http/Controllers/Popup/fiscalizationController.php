@@ -165,10 +165,10 @@ class fiscalizationController extends Controller
 
             'positions' => $position,
         ];
-
+        return app(TicketController::class)->CreateTicketResponse($body);
         try {
 
-            return app(TicketController::class)->CreateTicketResponse($body);
+
 
         } catch (\Throwable $e){
             //dd($e->getCode());
