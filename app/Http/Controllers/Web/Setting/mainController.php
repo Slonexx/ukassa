@@ -71,7 +71,7 @@ class mainController extends Controller
                 'token' => null,
             ]);
         }
-        dd( $setting->TokenMoySklad);
+        dd( $setting);
         if ($SettingBD->tokenMs == null){
             DataBaseService::createMainSetting($accountId, $setting->TokenMoySklad, $token);
         } else {
