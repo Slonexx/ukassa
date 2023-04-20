@@ -22,7 +22,7 @@ class getSettingVendorController extends Controller
 
         $appId = $cfg->appId;
         $json = AppInstanceContoller::loadApp($appId, $accountId);
-        dd($json);
+
         $this->appId = $json->appId;
         $this->accountId = $json->accountId;
         $this->TokenMoySklad = $json->TokenMoySklad;
