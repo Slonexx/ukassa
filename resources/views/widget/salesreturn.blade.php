@@ -95,11 +95,11 @@
 
 
     <div class="row gradient rounded p-2">
-        <div class="col-6">
-            <div class="mx-2"> <img src="https://ukassa.kz/_nuxt/img/d2b49fb.svg" width="90%"   alt=""> </div>
+        <div class="col-4 ">
+            <div class="mx-2"> <img src="https://ukassa.kz/_nuxt/img/d2b49fb.svg" width="100%"   alt=""> </div>
         </div>
-        <div class="col-2 ">
-
+        <div class="col-8 ">
+            <div class="mx-2 text-right" style="font-size: 10px"> Важно! После фискализации закрывайте документ без сохранения </div>
         </div>
     </div>
 
