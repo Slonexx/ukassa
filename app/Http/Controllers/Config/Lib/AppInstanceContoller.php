@@ -71,6 +71,7 @@ class AppInstanceContoller
         $_SESSION['currentAppInstance'] = $data;
 
         $AppInstance = new AppInstanceContoller($app->appId, $app->accountId);
+        dd($AppInstance);
         $AppInstance->setAppToClassAppInstance($app);
 
         //dd($AppInstance);
