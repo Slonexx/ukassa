@@ -111,7 +111,7 @@
             console.log("← Sending" + " message: " + messageAsString);
         }
         function getSearchToTIS(){
-            window.open('https://test.ukassa.kz/kassa/report/search/')
+            window.open('https://ukassa.kz/kassa/report/search/')
         }
 
 
