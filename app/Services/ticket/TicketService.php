@@ -262,7 +262,11 @@ class TicketService
         $agent = $Client->get($body->agent->meta->href);
         $result = [];
 
-        if (property_exists($agent, 'email')) { $result['email'] = $agent->email; }
+        if (property_exists($agent, 'email')) {
+            if (strpos($agent->email, '@') !== false) {
+                $result['email'] = $agent->email;
+            }
+        }
         if (property_exists($agent, 'phone')) { $result['phone'] = $agent->phone; }
         if (property_exists($agent, 'inn')) { $result['iin'] = $agent->inn; }
 
