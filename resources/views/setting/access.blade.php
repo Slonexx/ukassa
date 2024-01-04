@@ -5,7 +5,7 @@
     <script>
 
     </script>
-    <div class=" main-container content-container">
+    <div class="">
         <div class="content p-4 mt-2 bg-white text-Black rounded">
             @include('div.TopServicePartner')
             @include('div.alert')
