@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Web;
+namespace App\Http\Controllers\Web\Setting;
 
 use App\Clients\MsClient;
 use App\Http\Controllers\Config\getSettingVendorController;
