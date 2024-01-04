@@ -7,6 +7,7 @@ use App\Http\Controllers\BD\getMainSettingBD;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\globalObjectController;
 use App\Services\workWithBD\DataBaseService;
+use GuzzleHttp\Exception\BadResponseException;
 use Illuminate\Http\Request;
 
 class KassaController extends Controller
@@ -28,7 +29,7 @@ class KassaController extends Controller
         try {
             $get_user = $ClientTIS->GETClient($Config->apiURL_ukassa.'auth/get_user/');
             $department = $ClientTIS->GETClient($Config->apiURL_ukassa.'department');
-        } catch (\Throwable $e){
+        } catch (BadResponseException $e){
             return to_route('errorSetting', ['accountId' => $accountId,  'isAdmin' => $isAdmin, 'error' => $e->getMessage()]);
         }
 
@@ -40,7 +41,9 @@ class KassaController extends Controller
             'isAdmin' => $isAdmin,
 
             'kassa' => $kassa,
-            'department' => $department
+            'department' => $department,
+            'saveKassa' => $SettingBD->idKassa,
+            'saveDepartment' => $SettingBD->idDepartment,
         ]);
     }
 
