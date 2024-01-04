@@ -7,6 +7,7 @@ use App\Clients\MsClient;
 use App\Http\Controllers\BD\getMainSettingBD;
 use App\Http\Controllers\globalObjectController;
 use App\Services\MetaServices\MetaHook\AttributeHook;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\ClientException;
 use Illuminate\Support\Str;
 
@@ -21,15 +22,16 @@ class AutomatingServices
     private mixed $msOldBodyEntity;
     private AttributeHook $attributeHook;
     private  globalObjectController $Config;
+    private string $accountId ;
 
     public function initialization(mixed $ObjectBODY, mixed $BDFFirst): array
     {
-        $accountId = $BDFFirst['accountId'];
+        $this->accountId = $BDFFirst['accountId'];
         $this->attributeHook = new AttributeHook();
         $this->setting = new getMainSettingBD($BDFFirst['accountId']);
         $this->msClient = new MsClient($this->setting->tokenMs);
 
-        $this->kassClient = new KassClient($BDFFirst['accountId']);
+        $this->kassClient = new KassClient( $this->setting->authtoken );
 
         $this->msOldBodyEntity = $ObjectBODY;
         $this->settingAutomation = json_decode(json_encode($BDFFirst));
@@ -46,7 +48,7 @@ class AutomatingServices
         if ($body != []) {
             try {
                 $response = $this->kassClient->POSTClient($this->Config->apiURL_ukassa.'v2/operation/ticket/', $body);
-            } catch (ClientException $exception) {
+            } catch (BadResponseException $exception) {
                 return [
                     "ERROR",
                     "Ошибка при отправки",
@@ -59,8 +61,8 @@ class AutomatingServices
             }
 
             try {
-                $this->writeToAttrib($body, $response);
-            } catch (ClientException $exception) {
+                $this->writeToAttrib($response);
+            } catch (BadResponseException $exception) {
                 return [
                     "ERROR",
                     "Ошибка при сохранении",
@@ -79,10 +81,10 @@ class AutomatingServices
                 if ($this->setting->paymentDocument != null ){
                     $this->createPaymentDocument($body['payments']);
                 }
-            } catch (ClientException $exception) {
+            } catch (BadResponseException $exception) {
                 return [
                     "ERROR",
-                    "Ошибка при сохранении",
+                    "Ошибка при создании платёжных документах",
                     "==========================================",
                     json_decode($exception->getResponse()->getBody()->getContents()),
                     "BODY",
@@ -395,41 +397,41 @@ class AutomatingServices
 
         foreach ($jsonPositions->rows as $row) {
             $discount = $row->discount;
-            if ($discount > 0){ $discount = round((($row->price/100) * $row->quantity * ($discount/100)), 2); }
+            if ($discount > 0){
+                $discount = round((($row->price/100) * $row->quantity * ($discount/100)), 2);
+            }
             $product = $this->msClient->get($row->assortment->meta->href);
 
-            if (property_exists($row, 'vat') && property_exists($this->msOldBodyEntity, 'vatIncluded') and $row->vatEnabled) { $is_nds = true;
+            if (property_exists($row, 'vat') && property_exists($this->msOldBodyEntity, 'vatIncluded') and $row->vatEnabled) {
+                $is_nds = true;
             } else $is_nds = false;
 
             if (property_exists($row, 'trackingCodes') or isset($item_2->trackingCodes) ){
                 foreach ($jsonPositions->trackingCodes as $code){
-                    $positions[] = [
-                        'name' => (string) $row->name,
-                        'price' => (float) $row->price,
-                        'quantity' =>  1,
-                        'quantity_type' => (int) $this->getUnitCode($product),
-                        'total_amount' => (float) ( round($row->price * 1 - $discount, 2) ) ,
-                        'is_nds' => $is_nds,
-                        'discount' =>(float) $discount,
-                        'section' => (int) $this->setting->idDepartment,
-                        'mark_code' => (string) $code->cis,
-                    ];
+                    $positions[] = $this->createItemPosition(
+                        (string) $row->name,
+                        (float) $row->price,
+                        1,
+                        (float) $discount,
+                        (int) $this->setting->idDepartment,
+                        (int) $this->getUnitCode($product),
+                        $is_nds,
+                        (string) $code->cis
+                    );
                 }
             }
             else {
-                $positions[] = [
-                    'name' => (string) $row->name,
-                    'price' => (float) $row->price,
-                    'quantity' => (float)  $row->quantity,
-                    'quantity_type' => (int) $this->getUnitCode($product),
-                    'total_amount' => (float) ( round($row->price * 1 - $discount, 2) ) ,
-                    'is_nds' => $is_nds,
-                    'discount' =>(float) $discount,
-                    'section' => (int) $this->setting->idDepartment,
-                ];
+                $positions[] = $this->createItemPosition(
+                    (string) $product->name,
+                    (float) $row->price / 100,
+                    (float) $row->quantity,
+                    (float) $discount,
+                    (int) $this->setting->idDepartment,
+                    (int) $this->getUnitCode($product),
+                    $is_nds,
+                    ""
+                );
             }
-
-
         }
 
         return $positions;
@@ -521,13 +523,49 @@ class AutomatingServices
     }
 
 
-    public function writeToAttrib(mixed $createBody, mixed $postTicket)
+    public function writeToAttrib(mixed $postTicket)
     {
 
         $meta1 = $this->getMeta("фискальный номер (ТИС)");
         $meta2 = $this->getMeta("Ссылка для QR-кода (ТИС)");
         $meta3 = $this->getMeta("Фискализация (ТИС)");
         $meta4 = $this->getMeta("ID (ТИС)");
+        $meta5 = $this->getMeta("Тип Оплаты (ТИС)");
+
+        $value5 = '';
+
+        foreach ($postTicket->data->transaction_payments as $item_) {
+            $amount = 'на сумму: ' . $item_->amount;
+            if ($this->accountId == "f0eb536d-d41f-11e6-7a69-971100005224") $amount = '';
+            switch ($item_->payment_type) {
+                case 0 :
+                {
+                    $value5 .= "Оплата Наличными " . $amount . " ";
+                    break;
+                }
+                case 1 :
+                {
+                    $value5 .= "Оплата Картой " . $amount . " ";
+                    break;
+                }
+                case 2 :
+                {
+                    $value5 .= "Оплата Смешанный " . $amount . " ";
+                    break;
+                }
+                case 3 :
+                {
+                    $value5 .= "Оплата Мобильный " . $amount . " ";
+                    break;
+                }
+                default:
+                {
+                    $value5 .= "";
+                    break;
+                }
+            }
+        }
+
 
         $body = [
             "attributes" => [
@@ -547,8 +585,15 @@ class AutomatingServices
                     "meta" => $meta4,
                     "value" => (string) $postTicket->data->id,
                 ],
+                4 => [
+                    "meta" => $meta5,
+                    "value" => (string) $postTicket->data->id,
+                ],
             ],
+            "description" => $this->descriptionToCreate($postTicket, 'Продажа, Фискальный номер: '),
         ];
+
+
 
         return $this->msClient->put($this->msOldBodyEntity->meta->href, $body);
     }
@@ -575,4 +620,40 @@ class AutomatingServices
         }
         return [];
     }
+
+
+    private function createItemPosition($name, $price, $quantity, $discount, $section, $UOM, $is_nds, $code): array
+    {
+        $item = [
+            'name' => $name,
+            'price' => $price,
+            'quantity' => $quantity,
+            'total_amount' => (round($price * $quantity - $discount, 2)),
+            'section' => $section,
+            'quantity_type' => $UOM,
+            'is_nds' => $is_nds,
+            'discount' => $discount,
+            'mark_code' => $code,
+        ];
+
+        if ($discount <= 0) {
+            unset($item['discount']);
+        }
+        if ($code == "") {
+            unset($item['mark_code']);
+        }
+
+        return $item;
+    }
+
+    private function descriptionToCreate(mixed $postTicket, $message): string
+    {
+        $OldMessage = '';
+        if (property_exists($this->msOldBodyEntity, 'description')) {
+            $OldMessage = ($this->msOldBodyEntity)->description . PHP_EOL;
+        }
+
+        return $OldMessage . '[' . ((int)date('H') + 6) . date(':i:s') . ' ' . date('Y-m-d') . '] ' . $message . $postTicket->data->fixed_check;
+    }
+
 }

@@ -7,29 +7,17 @@ use App\Clients\MsClient;
 use App\Http\Controllers\BD\getMainSettingBD;
 use App\Http\Controllers\globalObjectController;
 use App\Models\htmlResponce;
-use App\Services\AdditionalServices\DocumentService;
-use App\Services\MetaServices\MetaHook\AttributeHook;
+
 use GuzzleHttp\Exception\BadResponseException;
+use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Http\JsonResponse;
 
 class TicketService
 {
 
-    private AttributeHook $attributeHook;
-    private DocumentService $documentService;
+    private getMainSettingBD $Setting;
 
-    /**
-     * @param AttributeHook $attributeHook
-     * @param DocumentService $documentService
-     */
-    public function __construct(AttributeHook $attributeHook, DocumentService $documentService)
-    {
-        $this->attributeHook = $attributeHook;
-        $this->documentService = $documentService;
-    }
-
-    // Create ticket
-
-    public function createTicket($data): \Illuminate\Http\JsonResponse
+    public function createTicket($data): JsonResponse
     {
         $accountId = $data['accountId'];
         $id_entity = $data['id_entity'];
@@ -43,36 +31,36 @@ class TicketService
         $positions = $data['positions'];
 
         $Setting = new getMainSettingBD($accountId);
+        $this->Setting = new getMainSettingBD($accountId);
 
         $ClientTIS = new KassClient($Setting->authtoken);
         $Client = new MsClient($Setting->tokenMs);
         $Config = new globalObjectController();
-        $oldBody =  $Client->get('https://api.moysklad.ru/api/remap/1.2/entity/'.$entity_type.'/'.$id_entity);
+        $oldBody = $Client->get('https://api.moysklad.ru/api/remap/1.2/entity/' . $entity_type . '/' . $id_entity);
 
         $Body = $this->setBodyToPostClient($Setting, $id_entity, $entity_type, $money_card, $money_cash, $payType, $total, $positions);
-
-        //dd($Body);
 
         if (isset($Body['Status'])) {
             return response()->json($Body['Message']);
         }
 
         try {
-            $postTicket = $ClientTIS->POSTClient($Config->apiURL_ukassa.'v2/operation/ticket/', $Body);
-            //  dd($postTicket);
+            $postTicket = $ClientTIS->POSTClient($Config->apiURL_ukassa . 'v2/operation/ticket/', $Body);
 
-            $putBody = $this->putBodyMS($entity_type, $postTicket, $Client, $Setting, $oldBody, $positions);
-            $put = $Client->put('https://api.moysklad.ru/api/remap/1.2/entity/'.$entity_type.'/'.$id_entity, $putBody);
+            $putBody = $this->putBodyMS($entity_type, $postTicket, $Client, $oldBody, $positions);
+            $put = $Client->put('https://api.moysklad.ru/api/remap/1.2/entity/' . $entity_type . '/' . $id_entity, $putBody);
 
-            //dd($putBody);
-            if ($payType == 'return'){
-                $this->createReturnDocument($Setting, $put, $postTicket, $putBody, $entity_type);
-                $put = $Client->put('https://api.moysklad.ru/api/remap/1.2/entity/'.$entity_type.'/'.$id_entity, [
-                    'description' => $this->descriptionToCreate($oldBody, $postTicket, 'Возврат, фискальный номер: '),
-                ]);
+            if ($Setting->accountId != "f0eb536d-d41f-11e6-7a69-971100005224") {
+                if ($payType == 'return') {
+                    $this->createReturnDocument($Setting, $put, $postTicket, $putBody, $entity_type);
+                    $put = $Client->put('https://api.moysklad.ru/api/remap/1.2/entity/' . $entity_type . '/' . $id_entity, [
+                        'description' => $this->descriptionToCreate($oldBody, $postTicket, 'Возврат, фискальный номер: '),
+                    ]);
+                }
             }
 
-            if ($Setting->paymentDocument != null ){
+
+            if ($Setting->paymentDocument != null) {
                 $this->createPaymentDocument($Setting, $Client, $entity_type, $put, $Body['payments']);
             }
 
@@ -82,21 +70,21 @@ class TicketService
             ]);
 
             return response()->json([
-                'status'    => 'Ticket created',
-                'code'      => 200,
+                'status' => 'Ticket created',
+                'code' => 200,
                 'postTicket' => $postTicket,
             ]);
 
-        } catch (BadResponseException  $e){
+        } catch (BadResponseException  $e) {
             return response()->json([
-                'status'    => 'error',
-                'code'      => $e->getCode(),
-                'errors'    => json_decode($e->getResponse()->getBody()->getContents(), true)
+                'status' => 'error',
+                'code' => $e->getCode(),
+                'errors' => json_decode($e->getResponse()->getBody()->getContents(), true),
+                'errors_' => $e->getMessage(),
+                'Body' => $Body,
+                'JSON_Body' => json_encode($Body)
             ]);
         }
-        //$postTicket = null;
-
-
 
     }
 
@@ -114,15 +102,22 @@ class TicketService
         if ($payments == null) return ['Status' => false, 'Message' => 'Не были введены суммы !'];
 
 
-        return [
-            'operation' => (int) $operation,
-            'kassa' => (int) $Setting->idKassa,
+        $result = [
+            'operation' => (int)$operation,
+            'kassa' => (int)$Setting->idKassa,
             'payments' => $payments,
             'items' => $items,
-            "total_amount" => (float) $total,
+            "total_amount" => (float)$total,
             "customer" => $customer,
+            'need_mark_code' => true,
             "as_html" => true,
         ];
+
+        if ($result['customer'] == []) {
+            unset($result['customer']);
+        }
+
+        return $result;
     }
 
 
@@ -140,27 +135,27 @@ class TicketService
         //dd($card, $cash, $total);
 
         $result = null;
-        if ( $cash > 0 ) {
-            $change = $total - $cash - $card;
+        if ($cash > 0) {
+            $change = number_format($total - $cash - $card, 2, '.', '');
             if ($change < 0) $change = $change * (-1);
 
             $result[] = [
                 'payment_type' => 0,
-                'total' => (float) $cash,
-                'change' => (float) $change,
-                'amount' => (float) $cash,
+                'total' => (float)$cash,
+                'change' => (float)$change,
+                'amount' => (float)$cash,
             ];
-            if ($result[0]['change'] == 0){
+            if ($result[0]['change'] == 0) {
                 unset($result[0]['change']);
             }
             //dd($result);
         }
-        if ( $card > 0 ) {
+        if ($card > 0) {
 
             $result[] = [
                 'payment_type' => 1,
-                'total' => (float) $card,
-                'amount' => (float) $card,
+                'total' => (float)$card,
+                'amount' => (float)$card,
             ];
         }
 
@@ -169,87 +164,27 @@ class TicketService
 
     private function getItems(getMainSettingBD $Setting, $positions, $idObject, $typeObject): array
     {
+        $msClient = new MsClient($Setting->tokenMs);
         $result = null;
-        if ($typeObject == 'demand'){
-            $Client = new MsClient($Setting->tokenMs);
-            $demand = $Client->get('https://api.moysklad.ru/api/remap/1.2/entity/' . $typeObject . '/' . $idObject);
-            $demandPos = $Client->get($demand->positions->meta->href)->rows;
 
-            foreach ($positions as $id => $item){
-                $is_nds = trim($item->is_nds, '%');
-                $discount = trim($item->discount, '%');
-                if ($is_nds == 'без НДС' or $is_nds == "0%"){$is_nds = false;
-                } else $is_nds = true;
-
-                if ($discount > 0){
-                    $discount = round(($item->price * $item->quantity * ($discount/100)), 2);
-                }
-
-                $result[] = [
-                    'name' => (string) $item->name,
-                    'price' => (float) $item->price,
-                    'quantity' => (float) $item->quantity,
-                    'quantity_type' => (int) $item->UOM,
-                    'total_amount' => (float) ( round($item->price * $item->quantity - $discount, 2) ) ,
-                    'is_nds' => $is_nds,
-                    'discount' =>(float) $discount,
-                    'section' => (int) $Setting->idDepartment,
-                ];
-
-
-                foreach ($demandPos as $item_2){
-                    if ($item->id == $item_2->id){
-                        if (isset($item_2->trackingCodes)){
-                            array_pop($result);
-                            foreach ($item_2->trackingCodes as $code){
-                                $result[] = [
-                                    'name' => (string) $item['name'],
-                                    'price' => (float) $item['price'],
-                                    'quantity' => 1,
-                                    'quantity_type' => 796,
-                                    'total_amount' => (float) ($item->price * 1),
-                                    'is_nds' => $is_nds,
-                                    'discount' =>(float) $discount,
-                                    'mark_code' =>(string) $code->cis,
-                                    'section' => (int) $Setting->idDepartment,
-                                ];
-                            }
-                        }
-                    }
-                }
-
-            }
-
-        } else {
-            foreach ($positions as $id => $item){
-                $is_nds = trim($item->is_nds, '%');
-                $discount = trim($item->discount, '%');
-                if ($is_nds == 'без НДС' or $is_nds == "0%"){$is_nds = false;
-                } else $is_nds = true;
-
-                if ($discount > 0){
-                    $discount = round(($item->price * $item->quantity * ($discount/100)), 2);
-                }
-
-                $result[$id] = [
-                    'name' => (string) $item->name,
-                    'price' => (float) $item->price,
-                    'quantity' => (float) $item->quantity,
-                    'quantity_type' => (int) $item->UOM,
-                    'total_amount' => (float) ( round($item->price * $item->quantity - $discount,2) ) ,
-                    'is_nds' => $is_nds,
-                    'discount' =>(float) $discount,
-                    'section' => (int) $Setting->idDepartment,
-                ];
-
-            }
+        if ($typeObject == 'demand') {
+            $demandPos = $msClient->get(($msClient->get('https://api.moysklad.ru/api/remap/1.2/entity/' . $typeObject . '/' . $idObject))->positions->meta->href)->rows;
         }
 
 
-        foreach ($result as $id => $item){
-            if ($item['discount']<= 0) {
-                unset($result[$id]['discount']);
-            }
+        foreach ($positions as $id => $item) {
+            $is_nds = trim($item->is_nds, '%');
+            $discount = trim($item->discount, '%');
+            if ($is_nds == 'без НДС' or $is_nds == "0%") { $is_nds = false; } else $is_nds = true;
+            if ($discount > 0) { $discount = round(($item->price * $item->quantity * ($discount / 100)), 2); }
+
+            if ($typeObject == 'demand'){
+
+                if (isset($demandPos[$id]->trackingCodes)){
+                    foreach ($demandPos[$id]->trackingCodes as $code){ $result[] = $this->itemPosition($item->name, $item->price, 1, $discount, $item->UOM, $is_nds, $Setting->idDepartment, $code->cis) ; }
+                } else { $result[] = $this->itemPosition($item->name, $item->price, $item->quantity, $discount, $item->UOM, $is_nds, $Setting->idDepartment, '') ; }
+
+            } else { $result[] = $this->itemPosition($item->name, $item->price, $item->quantity, $discount, $item->UOM, $is_nds, $Setting->idDepartment, '') ; }
         }
 
         return $result;
@@ -258,7 +193,7 @@ class TicketService
     private function getCustomer($Setting, $id_entity, $entity_type): array
     {
         $Client = new MsClient($Setting->tokenMs);
-        $body = $Client->get('https://api.moysklad.ru/api/remap/1.2/entity/'.$entity_type.'/'.$id_entity);
+        $body = $Client->get('https://api.moysklad.ru/api/remap/1.2/entity/' . $entity_type . '/' . $id_entity);
         $agent = $Client->get($body->agent->meta->href);
         $result = [];
 
@@ -267,40 +202,45 @@ class TicketService
                 $result['email'] = $agent->email;
             }
         }
-        if (property_exists($agent, 'phone')) { $result['phone'] = $agent->phone; }
-        if (property_exists($agent, 'inn')) { $result['iin'] = $agent->inn; }
+        if (property_exists($agent, 'phone')) {
+            $phone = "7" . mb_substr(str_replace('+7', '',
+                    str_replace(" ", '',
+                        str_replace('(', '',
+                            str_replace(')', '',
+                                str_replace('-', '', $agent->phone))))), -10);
+            $result['phone'] = $phone;
+        }
+        if (property_exists($agent, 'inn')) {
+            $result['iin'] = $agent->inn;
+        }
 
         return $result;
 
     }
 
-    private function putBodyMS($entity_type, mixed $postTicket, MsClient $Client, getMainSettingBD $Setting, mixed $oldBody, mixed $positionsBody): array
-    {   $result = null;
-        $Result_attributes = null;
-        $Resul_positions = null;
+    private function putBodyMS($entity_type, mixed $postTicket, MsClient $Client, mixed $oldBody, mixed $positionsBody): array
+    {
+        $result = null;
         $check_attributes_in_value_name = false;
-        if (property_exists($oldBody, 'attributes')) {
-            foreach ($oldBody->attributes as $item){
-                if ($item->name == 'Фискальный номер (Учёт.Касса)' and $item->name != ''){
-                    $check_attributes_in_value_name = false;
-                    break;
-                } else $check_attributes_in_value_name = true;
-            }
-        } else $check_attributes_in_value_name = true;
+        foreach ($oldBody->attributes as $item) {
+            if ($item->name == 'Фискальный номер (ТИС)' and $item->name != '') {
+                $check_attributes_in_value_name = false;
+                break;
+            } else $check_attributes_in_value_name = true;
+        }
 
-
-        $attributes = $Client->get('https://api.moysklad.ru/api/remap/1.2/entity/'.$entity_type.'/metadata/attributes/')->rows;
+        $attributes = $Client->get('https://api.moysklad.ru/api/remap/1.2/entity/' . $entity_type . '/metadata/attributes/')->rows;
         $Result_attributes = $this->setAttributesToPutBody($postTicket, $check_attributes_in_value_name, $attributes);
 
         $positions = $Client->get($oldBody->positions->meta->href)->rows;
-        $Resul_positions = $this->setPositionsToPutBody($postTicket, $positions, $positionsBody);
+        $Resul_positions = $this->setPositionsToPutBody($positions, $positionsBody);
 
         $result['description'] = $this->descriptionToCreate($oldBody, $postTicket, 'Продажа, Фискальный номер: ');
 
-        if ($Result_attributes != null){
+        if ($Result_attributes != null) {
             $result['attributes'] = $Result_attributes;
         }
-        if ($Resul_positions != null){
+        if ($Resul_positions != null) {
             $result['positions'] = $Resul_positions;
         }
         return $result;
@@ -310,68 +250,116 @@ class TicketService
     {
         $Result_attributes = null;
         foreach ($attributes as $item) {
-            if ($item->name == "фискальный номер (Учёт.Касса)" and $check_attributes == true) {
+            if ($item->name == "фискальный номер (ТИС)" and $check_attributes) {
                 $Result_attributes[] = [
-                    "meta"=> [
-                        "href"=> $item->meta->href,
-                        "type"=> $item->meta->type,
-                        "mediaType"=> $item->meta->mediaType,
+                    "meta" => [
+                        "href" => $item->meta->href,
+                        "type" => $item->meta->type,
+                        "mediaType" => $item->meta->mediaType,
                     ],
                     "value" => $postTicket->data->fixed_check,
                 ];
             }
-            if ($item->name == "Ссылка для QR-кода (Учёт.Касса)" ) {
+            if ($item->name == "Ссылка для QR-кода (ТИС)") {
                 $Result_attributes[] = [
-                    "meta"=> [
-                        "href"=> $item->meta->href,
-                        "type"=> $item->meta->type,
-                        "mediaType"=> $item->meta->mediaType,
+                    "meta" => [
+                        "href" => $item->meta->href,
+                        "type" => $item->meta->type,
+                        "mediaType" => $item->meta->mediaType,
                     ],
                     "value" => $postTicket->data->link,
                 ];
             }
-            if ($item->name == "Фискализация (Учёт.Касса)" ) {
+            if ($item->name == "Фискализация (ТИС)") {
                 $Result_attributes[] = [
-                    "meta"=> [
-                        "href"=> $item->meta->href,
-                        "type"=> $item->meta->type,
-                        "mediaType"=> $item->meta->mediaType,
+                    "meta" => [
+                        "href" => $item->meta->href,
+                        "type" => $item->meta->type,
+                        "mediaType" => $item->meta->mediaType,
                     ],
                     "value" => true,
                 ];
             }
-            if ($item->name == "ID (Учёт.Касса)" ) {
+            if ($item->name == "ID (ТИМ)") {
                 $Result_attributes[] = [
-                    "meta"=> [
-                        "href"=> $item->meta->href,
-                        "type"=> $item->meta->type,
-                        "mediaType"=> $item->meta->mediaType,
+                    "meta" => [
+                        "href" => $item->meta->href,
+                        "type" => $item->meta->type,
+                        "mediaType" => $item->meta->mediaType,
                     ],
-                    "value" => (string) $postTicket->data->id,
+                    "value" => (string)$postTicket->data->id,
+                ];
+            }
+            if ($item->name == "Тип Оплаты (ТИС)" and $check_attributes) {
+                $value = "";
+                foreach ($postTicket->data->transaction_payments as $item_) {
+                    $amount = 'на сумму: ' . $item_->amount;
+
+                    if ($this->Setting->accountId == "f0eb536d-d41f-11e6-7a69-971100005224") {
+                        $amount = '';
+                    } ;
+
+                    switch ($item_->payment_type) {
+                        case 0 :
+                        {
+                            $value .= "Оплата Наличными " . $amount . " ";
+                            break;
+                        }
+                        case 1 :
+                        {
+                            $value .= "Оплата Картой " . $amount . " ";
+                            break;
+                        }
+                        case 2 :
+                        {
+                            $value .= "Оплата Смешанный " . $amount . " ";
+                            break;
+                        }
+                        case 3 :
+                        {
+                            $value .= "Оплата Мобильный " . $amount . " ";
+                            break;
+                        }
+                        default:
+                        {
+                            $value .= "";
+                            break;
+                        }
+                    }
+                }
+
+                $Result_attributes[] = [
+                    "meta" => [
+                        "href" => $item->meta->href,
+                        "type" => $item->meta->type,
+                        "mediaType" => $item->meta->mediaType,
+                    ],
+                    "value" => $value,
                 ];
             }
         }
         return $Result_attributes;
     }
 
-    private function setPositionsToPutBody(mixed $postTicket, mixed $positions, mixed $positionsBody): array
-    {   $result = null;
+    private function setPositionsToPutBody(mixed $positions, mixed $positionsBody): array
+    {
+        $result = null;
         $sort = null;
-        foreach ($positionsBody as $id=>$one){
-            foreach ($positions as $item_p){
-                if ($item_p->id == $one->id){
+        foreach ($positionsBody as $id => $one) {
+            foreach ($positions as $item_p) {
+                if ($item_p->id == $one->id) {
                     $sort[$id] = $item_p;
                 }
             }
         }
-        foreach ($positionsBody as $id=>$item){
+        foreach ($positionsBody as $id => $item) {
             $result[$id] = [
                 "id" => $item->id,
-                "quantity" => (int) $item->quantity,
-                "price" => (float) $item->price * 100,
-                "discount" => (int) $item->discount,
-                "vat" => (int) $item->is_nds,
-                "assortment" => ['meta'=>[
+                "quantity" => (int)$item->quantity,
+                "price" => (float)$item->price * 100,
+                "discount" => (int)$item->discount,
+                "vat" => (int)$item->is_nds,
+                "assortment" => ['meta' => [
                     "href" => $sort[$id]->assortment->meta->href,
                     "type" => $sort[$id]->assortment->meta->type,
                     "mediaType" => $sort[$id]->assortment->meta->mediaType,
@@ -382,10 +370,11 @@ class TicketService
 
     }
 
-    private function createPaymentDocument( getMainSettingBD $Setting, MsClient $client, string $entity_type, mixed $OldBody, mixed $payments)
+    private function createPaymentDocument(getMainSettingBD $Setting, MsClient $client, string $entity_type, mixed $OldBody, mixed $payments): void
     {
-        switch ($Setting->paymentDocument){
-            case "1": {
+        switch ($Setting->paymentDocument) {
+            case "1":
+            {
                 $url = 'https://api.moysklad.ru/api/remap/1.2/entity/';
                 if ($entity_type != 'salesreturn') {
                     $url = $url . 'cashin';
@@ -394,20 +383,20 @@ class TicketService
                     break;
                 }
                 $body = [
-                    'organization' => [  'meta' => [
+                    'organization' => ['meta' => [
                         'href' => $OldBody->organization->meta->href,
                         'type' => $OldBody->organization->meta->type,
                         'mediaType' => $OldBody->organization->meta->mediaType,
-                    ] ],
-                    'agent' => [ 'meta'=> [
+                    ]],
+                    'agent' => ['meta' => [
                         'href' => $OldBody->agent->meta->href,
                         'type' => $OldBody->agent->meta->type,
                         'mediaType' => $OldBody->agent->meta->mediaType,
-                    ] ],
+                    ]],
                     'sum' => $OldBody->sum,
                     'operations' => [
                         0 => [
-                            'meta'=> [
+                            'meta' => [
                                 'href' => $OldBody->meta->href,
                                 'metadataHref' => $OldBody->meta->metadataHref,
                                 'type' => $OldBody->meta->type,
@@ -415,12 +404,13 @@ class TicketService
                                 'uuidHref' => $OldBody->meta->uuidHref,
                             ],
                             'linkedSum' => $OldBody->sum
-                        ], ]
+                        ],]
                 ];
                 $client->post($url, $body);
                 break;
             }
-            case "2": {
+            case "2":
+            {
                 $url = 'https://api.moysklad.ru/api/remap/1.2/entity/';
                 if ($entity_type != 'salesreturn') {
                     $url = $url . 'paymentin';
@@ -431,34 +421,34 @@ class TicketService
 
                 $rate_body = $client->get("https://api.moysklad.ru/api/remap/1.2/entity/currency/")->rows;
                 $rate = null;
-                foreach ($rate_body as $item){
-                    if ($item->name == "тенге" or $item->fullName == "Казахстанский тенге"){
+                foreach ($rate_body as $item) {
+                    if ($item->name == "тенге" or $item->fullName == "Казахстанский тенге") {
                         $rate =
-                            ['meta'=> [
+                            ['meta' => [
                                 'href' => $item->meta->href,
                                 'metadataHref' => $item->meta->metadataHref,
                                 'type' => $item->meta->type,
                                 'mediaType' => $item->meta->mediaType,
-                                ],
-                        ];
+                            ],
+                            ];
                     }
                 }
 
                 $body = [
-                    'organization' => [  'meta' => [
+                    'organization' => ['meta' => [
                         'href' => $OldBody->organization->meta->href,
                         'type' => $OldBody->organization->meta->type,
                         'mediaType' => $OldBody->organization->meta->mediaType,
-                    ] ],
-                    'agent' => [ 'meta'=> [
+                    ]],
+                    'agent' => ['meta' => [
                         'href' => $OldBody->agent->meta->href,
                         'type' => $OldBody->agent->meta->type,
                         'mediaType' => $OldBody->agent->meta->mediaType,
-                    ] ],
+                    ]],
                     'sum' => $OldBody->sum,
                     'operations' => [
                         0 => [
-                            'meta'=> [
+                            'meta' => [
                                 'href' => $OldBody->meta->href,
                                 'metadataHref' => $OldBody->meta->metadataHref,
                                 'type' => $OldBody->meta->type,
@@ -466,19 +456,19 @@ class TicketService
                                 'uuidHref' => $OldBody->meta->uuidHref,
                             ],
                             'linkedSum' => $OldBody->sum
-                        ], ],
+                        ],],
                     'rate' => $rate
                 ];
-                if ($body['rate'] == null) unlink($body['rate']);
+                if ($body['rate'] == null) unset($body['rate']);
                 $client->post($url, $body);
                 break;
             }
-            case "3": {
+            case "3":
+            {
                 $url = 'https://api.moysklad.ru/api/remap/1.2/entity/';
-                $url_to_body = null;
-                foreach ($payments as $item){
+                foreach ($payments as $item) {
                     $change = 0;
-                    if ($item['payment_type'] == 0){
+                    if ($item['payment_type'] == 0) {
                         if ($entity_type != 'salesreturn') {
                             $url_to_body = $url . 'cashin';
                         } else {
@@ -497,10 +487,10 @@ class TicketService
 
                     $rate_body = $client->get("https://api.moysklad.ru/api/remap/1.2/entity/currency/")->rows;
                     $rate = null;
-                    foreach ($rate_body as $item_rate){
-                        if ($item_rate->name == "тенге" or $item_rate->fullName == "Казахстанский тенге"){
+                    foreach ($rate_body as $item_rate) {
+                        if ($item_rate->name == "тенге" or $item_rate->fullName == "Казахстанский тенге") {
                             $rate =
-                                ['meta'=> [
+                                ['meta' => [
                                     'href' => $item_rate->meta->href,
                                     'metadataHref' => $item_rate->meta->metadataHref,
                                     'type' => $item_rate->meta->type,
@@ -511,41 +501,42 @@ class TicketService
                     }
 
                     $body = [
-                        'organization' => [  'meta' => [
+                        'organization' => ['meta' => [
                             'href' => $OldBody->organization->meta->href,
                             'type' => $OldBody->organization->meta->type,
                             'mediaType' => $OldBody->organization->meta->mediaType,
-                        ] ],
-                        'agent' => [ 'meta'=> [
+                        ]],
+                        'agent' => ['meta' => [
                             'href' => $OldBody->agent->meta->href,
                             'type' => $OldBody->agent->meta->type,
                             'mediaType' => $OldBody->agent->meta->mediaType,
-                        ] ],
-                        'sum' => ($item['total']-$change) * 100,
+                        ]],
+                        'sum' => ($item['total'] - $change) * 100,
                         'operations' => [
                             0 => [
-                                'meta'=> [
+                                'meta' => [
                                     'href' => $OldBody->meta->href,
                                     'metadataHref' => $OldBody->meta->metadataHref,
                                     'type' => $OldBody->meta->type,
                                     'mediaType' => $OldBody->meta->mediaType,
                                     'uuidHref' => $OldBody->meta->uuidHref,
                                 ],
-                                'linkedSum' => $OldBody->sum
-                            ], ],
+                                'linkedSum' => ($item['total'] - $change) * 100
+                            ],],
                         'rate' => $rate
                     ];
-                    if ($body['rate'] == null) unlink($body['rate']);
+                    if ($body['rate'] == null) unset($body['rate']);
                     $client->post($url_to_body, $body);
                 }
                 break;
             }
-            case "4":{
+            case "4":
+            {
                 $url = 'https://api.moysklad.ru/api/remap/1.2/entity/';
                 $url_to_body = null;
-                foreach ($payments as $item){
+                foreach ($payments as $item) {
                     $change = 0;
-                    if ($item['payment_type'] == 0){
+                    if ($item['payment_type'] == 0) {
                         if ($entity_type != 'salesreturn') {
                             if ($Setting->OperationCash == 1) {
                                 $url_to_body = $url . 'cashin';
@@ -574,10 +565,10 @@ class TicketService
 
                     $rate_body = $client->get("https://api.moysklad.ru/api/remap/1.2/entity/currency/")->rows;
                     $rate = null;
-                    foreach ($rate_body as $item_rate){
-                        if ($item_rate->name == "тенге" or $item_rate->fullName == "Казахстанский тенге"){
+                    foreach ($rate_body as $item_rate) {
+                        if ($item_rate->name == "тенге" or $item_rate->fullName == "Казахстанский тенге") {
                             $rate =
-                                ['meta'=> [
+                                ['meta' => [
                                     'href' => $item_rate->meta->href,
                                     'metadataHref' => $item_rate->meta->metadataHref,
                                     'type' => $item_rate->meta->type,
@@ -588,28 +579,28 @@ class TicketService
                     }
 
                     $body = [
-                        'organization' => [  'meta' => [
+                        'organization' => ['meta' => [
                             'href' => $OldBody->organization->meta->href,
                             'type' => $OldBody->organization->meta->type,
                             'mediaType' => $OldBody->organization->meta->mediaType,
-                        ] ],
-                        'agent' => [ 'meta'=> [
+                        ]],
+                        'agent' => ['meta' => [
                             'href' => $OldBody->agent->meta->href,
                             'type' => $OldBody->agent->meta->type,
                             'mediaType' => $OldBody->agent->meta->mediaType,
-                        ] ],
-                        'sum' => ($item['total']-$change) * 100,
+                        ]],
+                        'sum' => ($item['total'] - $change) * 100,
                         'operations' => [
                             0 => [
-                                'meta'=> [
+                                'meta' => [
                                     'href' => $OldBody->meta->href,
                                     'metadataHref' => $OldBody->meta->metadataHref,
                                     'type' => $OldBody->meta->type,
                                     'mediaType' => $OldBody->meta->mediaType,
                                     'uuidHref' => $OldBody->meta->uuidHref,
                                 ],
-                                'linkedSum' => $OldBody->sum
-                            ], ],
+                                'linkedSum' => ($item['total'] - $change) * 100,
+                            ],],
                         'rate' => $rate
                     ];
                     if ($body['rate'] == null) unset($body['rate']);
@@ -617,14 +608,15 @@ class TicketService
                 }
                 break;
             }
-            default:{
-               break;
+            default:
+            {
+                break;
             }
         }
 
     }
 
-    private function createReturnDocument(getMainSettingBD $Setting, mixed $newBody, mixed $putBody, mixed $oldBody, mixed $entity_type)
+    private function createReturnDocument(getMainSettingBD $Setting, mixed $newBody, mixed $putBody, mixed $oldBody, mixed $entity_type): void
     {
         if ($entity_type != 'salesreturn') {
             $client = new MsClient($Setting->tokenMs);
@@ -632,8 +624,8 @@ class TicketService
             $attributes_item = $client->get('https://api.moysklad.ru/api/remap/1.2/entity/salesreturn/metadata/attributes/')->rows;
             $attributes = null;
             $positions = null;
-            foreach ($attributes_item as $item){
-                if ($item->name == 'фискальный номер (Учёт.Касса)'){
+            foreach ($attributes_item as $item) {
+                if ($item->name == 'фискальный номер (ТИС)') {
                     $attributes[] = [
                         'meta' => [
                             'href' => $item->meta->href,
@@ -643,7 +635,7 @@ class TicketService
                         'value' => $putBody->data->fixed_check,
                     ];
                 }
-                if ($item->name == 'Ссылка для QR-кода (Учёт.Касса)'){
+                if ($item->name == 'Ссылка для QR-кода (ТИС)') {
                     $attributes[] = [
                         'meta' => [
                             'href' => $item->meta->href,
@@ -653,7 +645,7 @@ class TicketService
                         'value' => $putBody->data->link,
                     ];
                 }
-                if ($item->name == 'Фискализация (Учёт.Касса)'){
+                if ($item->name == 'Фискализация (ТИС)') {
                     $attributes[] = [
                         'meta' => [
                             'href' => $item->meta->href,
@@ -682,7 +674,7 @@ class TicketService
                         'mediaType' => $newBody->organization->meta->mediaType,
                     ]
                 ],
-                'agent' =>[
+                'agent' => [
                     'meta' => [
                         'href' => $newBody->agent->meta->href,
                         'metadataHref' => $newBody->agent->meta->metadataHref,
@@ -695,10 +687,9 @@ class TicketService
                 'description' => 'Созданный документ возврата с ',
                 'organizationAccount' => null,
                 'demand' => null,
-                'store' => null,
             ];
 
-            if (isset($newBody->organizationAccount)){
+            if (isset($newBody->organizationAccount)) {
                 $body['organizationAccount'] = [
                     'meta' => [
                         'href' => $newBody->organizationAccount->meta->href,
@@ -706,9 +697,11 @@ class TicketService
                         'mediaType' => $newBody->organizationAccount->meta->mediaType,
                     ]
                 ];
-            } else { unlink($body['organizationAccount']); }
+            } else {
+                unset($body['organizationAccount']);
+            }
 
-            if (isset($newBody->store)){
+            if (isset($newBody->store)) {
                 $body['store'] = [
                     'meta' => [
                         'href' => $newBody->store->meta->href,
@@ -717,7 +710,8 @@ class TicketService
                         'mediaType' => $newBody->store->meta->mediaType,
                     ]
                 ];
-            } else { $store = $client->get('https://api.moysklad.ru/api/remap/1.2/entity/store')->rows[0];
+            } else {
+                $store = $client->get('https://api.moysklad.ru/api/remap/1.2/entity/store')->rows[0];
                 $body['store'] = [
                     'meta' => [
                         'href' => $store->meta->href,
@@ -729,15 +723,13 @@ class TicketService
             }
 
 
-
-
-            if ($entity_type == 'customerorder'){
-                $body['description'] = $body['description'].'заказа покупателя, его номер:'. $newBody->name;
+            if ($entity_type == 'customerorder') {
+                $body['description'] = $body['description'] . 'заказа покупателя, его номер:' . $newBody->name;
                 unset($body['demand']);
             }
 
-            if ($entity_type == 'demand'){
-                $body['description'] = $body['description'].'отгрузка, его номер:'. $newBody->name;
+            if ($entity_type == 'demand') {
+                $body['description'] = $body['description'] . 'отгрузка, его номер:' . $newBody->name;
                 $body['demand'] = [
                     'meta' => [
                         'href' => $newBody->meta->href,
@@ -749,7 +741,7 @@ class TicketService
             }
             try {
                 $client->post($url, $body);
-            } catch (BadResponseException $exception){
+            } catch (BadResponseException) {
 
             }
         }
@@ -761,11 +753,33 @@ class TicketService
     {
         $OldMessage = '';
         if (property_exists($oldBody, 'description')) {
-            $OldMessage = $oldBody->description.PHP_EOL;
+            $OldMessage = $oldBody->description . PHP_EOL;
         }
 
-        return (string) $OldMessage.'['.( (int) date('H') + 6 ).date(':i:s').' '. date('Y-m-d') .'] '. $message.$postTicket->data->fixed_check ;
+        return $OldMessage . '[' . ((int)date('H') + 6) . date(':i:s') . ' ' . date('Y-m-d') . '] ' . $message . $postTicket->data->fixed_check;
     }
 
+    private function itemPosition(string $name, float $price, float $quantity, float $discount, int $UOM, $is_nds, int $section, string $code): array
+    {
+        $item =  [
+            'name' => $name,
+            'price' => $price,
+            'quantity' => $quantity,
+            'total_amount' => (round($price * $quantity - $discount, 2)),
+            'section' => $section,
+            'quantity_type' => $UOM,
+            'is_nds' => $is_nds,
+            'discount' => $discount,
+            'mark_code' => $code,
+        ];
+
+        if ($discount <= 0) {
+            unset($item['discount']);
+        }
+        if ($code == "") {
+            unset($item['mark_code']);
+        }
+        return $item;
+    }
 
 }
