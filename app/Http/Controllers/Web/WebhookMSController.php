@@ -94,7 +94,6 @@ class WebhookMSController extends Controller
                 'body_id'=> [
                     'entity' => $objectBody->meta->type,
                     'state' => $state->id,
-                    'state?' => $objectBody->state
                 ],
                 'automation'=> $item,
             ];
