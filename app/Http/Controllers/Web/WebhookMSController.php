@@ -11,6 +11,7 @@ use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class WebhookMSController extends Controller
 {
@@ -54,7 +55,7 @@ class WebhookMSController extends Controller
 
         if (property_exists($objectBody, 'attributes')) {
             foreach ($objectBody->attributes as $item) {
-                if ($item->name == 'Фискализация (ТИС Prosklad)' and $item->value) return $this->jsonResponseWithMoment(104, $auditContext['moment'], "Фискальный чек уже создан");
+                if ($item->name == 'Фискализация (ТИС)' and $item->value) return $this->jsonResponseWithMoment(104, $auditContext['moment'], "Фискальный чек уже создан");
 
             }
         }
@@ -64,6 +65,7 @@ class WebhookMSController extends Controller
         elseif ($events[0]['meta']['type'] == 'demand') $arraySetProEntity = ["1",];
         elseif ($events[0]['meta']['type'] == 'salesreturn') $arraySetProEntity = ["2",];
 
+        $for = [];
 
         foreach ($multiDimensionalArray as $item) {
             $start = ['entity' => in_array($item['entity'], $arraySetProEntity), 'state' => false, 'saleschannel' => false, 'project' => false];
@@ -86,10 +88,18 @@ class WebhookMSController extends Controller
                     'status' => 'Инициализация в сервисе',
                     'message' => $this->automatingServices->initialization($objectBody, $item),
                 ]);
-            }
+            } else $for[] = [
+                'message'=> 'отсутствуют сопоставление',
+                'start'=> $start,
+                'automation'=> $item,
+            ];
         }
 
-        return $this->jsonResponseWithMoment(105, $auditContext['moment'], "Конец скрипта, прошел по foreach, не нашел нужный скрипт");
+        return response()->json([
+            'code' => 105,
+            'message' => 'Конец скрипта, прошел по foreach, не нашел нужный сцену',
+            'foreach' => $for
+        ]);
     }
 
     private function checkProject($item, $objectBody, $msClient)
