@@ -91,6 +91,11 @@ class WebhookMSController extends Controller
             } else $for[] = [
                 'message'=> 'отсутствуют сопоставление',
                 'start'=> $start,
+                'body_id'=> [
+                    'entity' => $objectBody->meta->type,
+                    'state' => $state->id,
+                    'state?' => $objectBody->state
+                ],
                 'automation'=> $item,
             ];
         }
